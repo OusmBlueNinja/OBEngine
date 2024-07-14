@@ -1,6 +1,15 @@
 # OBEngine
 A Pygame Game Engine/Library to speed up the development with pygame
 
+## Features
+
+- Particles 
+- Colisions
+- Debug Menu Lib
+- Image Lib
+- Sound Lib
+
+
 
 ## TODO
 
