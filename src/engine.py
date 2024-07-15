@@ -2,7 +2,9 @@ import pygame, time, math, datetime, os, sys, random
 
 pygame.font.init()
 
-version = "1.5.6"
+version = "1.6.8"
+
+_delta_time = 0
 
 
 class COLOR:
@@ -98,7 +100,9 @@ def init(screen_size: tuple):
 
     
 
-def tick(screen):
+def tick(screen, delta_time):
+    global _delta_time
+    _delta_time = delta_time
     """Called Every Game Tick"""
     # Draw Cursor
     if _CURSOR_ICON:
@@ -215,11 +219,11 @@ class Particle:
 
     def update(self):
         # Update position based on velocity
-        self.position[0] += self.velocity[0]
-        self.position[1] += self.velocity[1]
+        self.position[0] += self.velocity[0] * (_delta_time+1)
+        self.position[1] += self.velocity[1] * (_delta_time+1)
 
         # Update age
-        self.age += 1
+        self.age += 1 * _delta_time
         self.size -= 0.01
 
         # Gradually decrease size as particle ages
@@ -239,7 +243,7 @@ class Math:
         super().__init__()
         pass
     @staticmethod
-    def lerp(self, a, b, t):
+    def lerp(a, b, t):
         return a + (b - a) * t
     
     
@@ -595,7 +599,6 @@ class Terminal:
             if self.input:
                 if event.key == pygame.K_RETURN:
                     # Execute command or add text to history
-                    self.history = [self.text_input] + self.history
                     if self.callback:
                         self.callback(self.text_input)
                     self.text_input = ""
@@ -615,7 +618,7 @@ class Terminal:
             self.update(event)
 
     def update_cursor(self, deltatime):
-        self._cursor_blink_timer += deltatime
+        self._cursor_blink_timer += 100 * (deltatime+1)
         if self._cursor_blink_timer >= 500:  # Blink every 500 milliseconds
             self._cursor_visible = not self._cursor_visible
             self._cursor_blink_timer = 0
