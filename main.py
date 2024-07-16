@@ -1,11 +1,10 @@
 import pygame
 import sys
 import os
-from entities.player import Player # type: ignore
-from entities.entity import Entity # type: ignore
+import json
 
-from engine.EngineTypes import GroundType, AirType # type: ignore
-import engine.OBEngine
+from engine.EngineTypes import GroundType, AirType, AnimationItem # type: ignore
+import engine.OBEngine as engine
 
 # Initialize Pygame
 pygame.init()
@@ -46,7 +45,11 @@ def load_tiles_from_sheet(filename, tile_size) -> list[pygame.Surface]:
             tiles.append(tile)
     return tiles
 
+def createAnimClone(path, size, sequence, speed):
+    return engine.AnimationPlayer(load_tiles_from_sheet(path, size), sequence=sequence, speed=speed)
+
 tile_images: list[pygame.Surface] = load_tiles_from_sheet('./assets/images/spritesheet.png', SPRITE_SIZE)
+tile_images = [createAnimClone('./assets/images/coin.png', SPRITE_SIZE, [0,1,2,3,4,5,6,7,8,9,10,11], 0.2)] + tile_images
 
 # Create a grid
 grid = [[AirType(None, pos=(x,y)) for y in range(GRID_WIDTH)] for x in range(GRID_HEIGHT)]
@@ -55,8 +58,8 @@ tabs = ["Tiles", "Info", "Settings"]
 selected_tab = "Tiles"
 
 # Scroll settings for the sidebar
-scroll_y = 0
-max_scroll = max(0, (len(tile_images) // SIDEBAR_TILE_COLS + 1) * SIDEBAR_TILE_SIZE - SCREEN_HEIGHT)
+scroll_y = -10
+max_scroll = max(-10, (len(tile_images) // SIDEBAR_TILE_COLS + 1) * SIDEBAR_TILE_SIZE - SCREEN_HEIGHT + 45)
 
 # Main loop
 def main():
@@ -66,6 +69,10 @@ def main():
     selected_tile = None
     player = None
     entities = []
+    
+    
+    
+    Animations = []
 
     Info_Sellected_tile = None
 
@@ -106,8 +113,10 @@ def main():
                     grid_x = x // TILE_SIZE
                     
                     if selected_tile is not None and selected_tab == "Tiles":
-                        print(grid_x, grid_y)
-                        grid[grid_y][grid_x] = GroundType(tile_images[selected_tile], pos=(grid_x, grid_y), tile_id=selected_tile)
+                        if type(tile_images[selected_tile]) == engine.AnimationPlayer:
+                            grid[grid_y][grid_x] = AnimationItem(createAnimClone('./assets/images/coin.png', SPRITE_SIZE, [0,1,2,3,4,5,6,7,8,9,10,11], 0.2), pos=(grid_x, grid_y), tile_id=selected_tile)
+                        else:
+                            grid[grid_y][grid_x] = GroundType(tile_images[selected_tile], pos=(grid_x, grid_y), tile_id=selected_tile)
                     elif selected_tile is not None and selected_tab == "Info":
                         Info_Sellected_tile = grid[grid_y][grid_x]
 
@@ -118,7 +127,7 @@ def main():
             elif event.type == pygame.MOUSEWHEEL:
                 # Scroll in the sidebar
                 if event.y > 0:
-                    scroll_y = max(scroll_y - SIDEBAR_TILE_SIZE, 0)
+                    scroll_y = max(scroll_y - SIDEBAR_TILE_SIZE, -10)
                 elif event.y < 0:
                     scroll_y = min(scroll_y + SIDEBAR_TILE_SIZE, max_scroll)
             elif event.type == pygame.MOUSEMOTION and event.buttons[0]:
@@ -127,7 +136,10 @@ def main():
                     grid_x = x // TILE_SIZE
                     grid_y = y // TILE_SIZE
                     if selected_tile is not None:
-                        grid[grid_y][grid_x] = GroundType(tile_images[selected_tile], pos=(grid_x, grid_y), tile_id=selected_tile)
+                        if type(tile_images[selected_tile]) == engine.AnimationPlayer:
+                            grid[grid_y][grid_x] = AnimationItem(createAnimClone('./assets/images/coin.png', SPRITE_SIZE, [0,1,2,3,4,5,6,7,8,9,10,11], 0.2), pos=(grid_x, grid_y), tile_id=selected_tile)
+                        else:
+                            grid[grid_y][grid_x] = GroundType(tile_images[selected_tile], pos=(grid_x, grid_y), tile_id=selected_tile)
 
         
 
@@ -138,18 +150,20 @@ def main():
                 if grid[y][x] != -1:
                     grid[y][x].draw(screen, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE)
 
-        # Draw player
-        if player:
-            screen.blit(player.image, (player.x, player.y))
 
-        # Draw entities
-        for entity in entities:
-            screen.blit(entity.image, (entity.x, entity.y))
+        
+
+        
 
         # Draw sidebar
         sidebar_rect = pygame.Rect(SCREEN_WIDTH - SIDEBAR_WIDTH, 0, SIDEBAR_WIDTH, SCREEN_HEIGHT)
         pygame.draw.rect(screen, LIGHT_GRAY, sidebar_rect)
         tab_width = SIDEBAR_WIDTH // len(tabs)
+        
+        
+        
+        
+        
         
         
         if selected_tab == "Tiles":
@@ -159,10 +173,40 @@ def main():
                 x_pos = SCREEN_WIDTH - SIDEBAR_WIDTH + col * SIDEBAR_TILE_SIZE + 10
                 y_pos = TAB_HEIGHT + row * SIDEBAR_TILE_SIZE - scroll_y
                 pygame.draw.rect(screen, (0,0,0), (x_pos-2,y_pos-2, SIDEBAR_TILE_SIZE+2, SIDEBAR_TILE_SIZE+2), 1)
-                screen.blit(img, (x_pos, y_pos))
+                if type(img) == engine.AnimationPlayer:
+                    if not img.playing:
+                        img.play()
+                    img.update()
+                    img.draw(screen, (x_pos, y_pos),(SIDEBAR_TILE_SIZE,SIDEBAR_TILE_SIZE))
+                else:
+
+                    screen.blit(img, (x_pos, y_pos))
 
         if selected_tab == "Info" and Info_Sellected_tile:
                 InfoLines = [f"Tile Type: {Info_Sellected_tile.name}", f"Tile pos: {Info_Sellected_tile.pos}", f"Tile Id: {Info_Sellected_tile.tile_id}"]
+                if type(Info_Sellected_tile) == AnimationItem:
+                    AnimationEngine = Info_Sellected_tile.image
+                    InfoLines.append(f"Animation Phase: {round(AnimationEngine.frame_number)}")
+                    InfoLines.append(f"Total Frames: {len(AnimationEngine.frames)}")
+                    InfoLines.append(f"Frame Sequence: ")
+                    x = AnimationEngine.frame_order
+                    formatedAnimOrder = []
+                    temp = []
+                    for index, item in enumerate(x):
+                        if index % 8 == 0 and index != 0:
+                            temp.append(item)
+                            formatedAnimOrder.append(temp)
+                            temp = []
+                        else:
+                            temp.append(item)
+                    
+                    for row in formatedAnimOrder:
+                        InfoLines.append(f"{row}")
+                    del x, temp
+                    InfoLines.append(f"Frame Speed: {AnimationEngine.speed}")
+                    
+                    
+                
                 for i, line in enumerate(InfoLines):
 
                     
@@ -170,6 +214,15 @@ def main():
                     font = pygame.font.SysFont(None, 24)
                     text = font.render(line, True, BLACK)
                     screen.blit(text, (SCREEN_WIDTH - SIDEBAR_WIDTH + 20, (i * 20)+60))
+                    
+        for Animation in Animations:
+            if not Animation.playing:
+                Animation.play()
+        
+        
+            Animation.update()
+        
+            Animation.draw(screen)
 
         for i, tab in enumerate(tabs):
             rect = pygame.Rect(SCREEN_WIDTH - SIDEBAR_WIDTH + i * tab_width, 0, tab_width, TAB_HEIGHT)
@@ -181,6 +234,11 @@ def main():
 
         pygame.display.flip()
         clock.tick(FPS)
+        
+        
+    # Save the grid
+    
+    
 
     pygame.quit()
     sys.exit()
